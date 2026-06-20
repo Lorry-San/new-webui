@@ -263,7 +263,9 @@ class SubscriptionUsageTable:
         output_price = model_price.get('output_token_price_per_1k', rules.get('default_output_token_price_per_1k', 0))
         input_tokens = int(usage.get('input_tokens') or usage.get('prompt_tokens') or 0)
         output_tokens = int(usage.get('output_tokens') or usage.get('completion_tokens') or 0)
-        return round((input_tokens / 1000 * float(input_price or 0)) + (output_tokens / 1000 * float(output_price or 0)), 6)
+        return round(
+            (input_tokens / 1000 * float(input_price or 0)) + (output_tokens / 1000 * float(output_price or 0)), 6
+        )
 
     async def record(
         self,
@@ -330,7 +332,9 @@ class SubscriptionsTable:
                 db.add(SubscriptionPlan(**plan, is_active=True, created_at=now, updated_at=now))
             await db.commit()
 
-    async def get_plans(self, active_only: bool = True, db: Optional[AsyncSession] = None) -> list[SubscriptionPlanModel]:
+    async def get_plans(
+        self, active_only: bool = True, db: Optional[AsyncSession] = None
+    ) -> list[SubscriptionPlanModel]:
         async with get_async_db_context(db) as db:
             await self.ensure_default_plans(db)
             stmt = select(SubscriptionPlan).order_by(SubscriptionPlan.sort_order.asc(), SubscriptionPlan.price.asc())
@@ -484,17 +488,16 @@ class SubscriptionsTable:
                 select(UserSubscription)
                 .where(UserSubscription.user_id == user_id)
                 .where(UserSubscription.status == 'active')
-                .where(
-                    (UserSubscription.current_period_end == None)
-                    | (UserSubscription.current_period_end > now)
-                )
+                .where((UserSubscription.current_period_end == None) | (UserSubscription.current_period_end > now))
                 .order_by(UserSubscription.created_at.desc())
                 .limit(1)
             )
             row = result.scalar_one_or_none()
             return UserSubscriptionModel.model_validate(row) if row else None
 
-    async def get_user_plan(self, user_id: str, db: Optional[AsyncSession] = None) -> tuple[SubscriptionPlanModel, Optional[UserSubscriptionModel]]:
+    async def get_user_plan(
+        self, user_id: str, db: Optional[AsyncSession] = None
+    ) -> tuple[SubscriptionPlanModel, Optional[UserSubscriptionModel]]:
         subscription = await self.get_user_subscription(user_id, db=db)
         plan_id = subscription.plan_id if subscription else DEFAULT_PLAN_ID
         plan = await self.get_plan_by_id(plan_id, db=db) or await self.get_plan_by_id(DEFAULT_PLAN_ID, db=db)

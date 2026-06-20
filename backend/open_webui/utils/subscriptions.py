@@ -54,7 +54,9 @@ async def check_subscription_access(user_id: str, model_id: str) -> Subscription
     return plan
 
 
-async def record_subscription_usage(user_id: str, plan: SubscriptionPlanModel, model_id: str, usage: dict, metadata: dict):
+async def record_subscription_usage(
+    user_id: str, plan: SubscriptionPlanModel, model_id: str, usage: dict, metadata: dict
+):
     if not usage:
         return
     amount = SubscriptionUsage.calculate_amount(plan, model_id, usage)

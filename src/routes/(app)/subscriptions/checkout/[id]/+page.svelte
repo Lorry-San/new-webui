@@ -86,7 +86,9 @@
 		</div>
 	{:else if checkout}
 		<div class="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-5 pb-12">
-			<section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+			<section
+				class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+			>
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Plan')}</div>
@@ -103,7 +105,9 @@
 					</div>
 				</div>
 
-				<div class="mt-7 grid grid-cols-1 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-950 md:grid-cols-2">
+				<div
+					class="mt-7 grid grid-cols-1 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-950 md:grid-cols-2"
+				>
 					<div>
 						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Amount')}</div>
 						<div class="mt-1 font-semibold text-gray-900 dark:text-gray-50">

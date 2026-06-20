@@ -292,7 +292,9 @@
 									</div>
 
 									{#if $config?.ui?.login_subtitle}
-										<div class="mt-1 text-xs font-medium text-gray-600 dark:text-gray-500 whitespace-pre-line">
+										<div
+											class="mt-1 text-xs font-medium text-gray-600 dark:text-gray-500 whitespace-pre-line"
+										>
 											{$config.ui.login_subtitle}
 										</div>
 									{:else if $config?.onboarding ?? false}

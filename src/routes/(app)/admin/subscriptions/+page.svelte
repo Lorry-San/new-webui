@@ -105,11 +105,14 @@
 	</div>
 {:else}
 	<div class="mx-auto flex h-full max-w-6xl gap-4 px-4 py-4">
-		<aside class="w-64 shrink-0 rounded-2xl border border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+		<aside
+			class="w-64 shrink-0 rounded-2xl border border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-900"
+		>
 			{#each plans as plan}
 				<button
 					type="button"
-					class="w-full rounded-xl px-3 py-2 text-left text-sm transition {selectedPlanId === plan.id
+					class="w-full rounded-xl px-3 py-2 text-left text-sm transition {selectedPlanId ===
+					plan.id
 						? 'bg-gray-100 dark:bg-gray-850'
 						: 'hover:bg-gray-50 dark:hover:bg-gray-850/50'}"
 					on:click={() => selectPlan(plan)}
@@ -121,7 +124,9 @@
 		</aside>
 
 		{#if selectedPlan}
-			<section class="flex min-w-0 flex-1 flex-col rounded-2xl border border-gray-100 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+			<section
+				class="flex min-w-0 flex-1 flex-col rounded-2xl border border-gray-100 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
+			>
 				<div class="flex items-center justify-between">
 					<div>
 						<div class="text-lg font-semibold">{$i18n.t('Subscription Plan')}</div>
@@ -139,7 +144,9 @@
 					</button>
 				</div>
 
-				<div class="mt-5 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+				<div
+					class="mt-5 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950"
+				>
 					<div class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-semibold">{$i18n.t('Pending Checkouts')}</div>

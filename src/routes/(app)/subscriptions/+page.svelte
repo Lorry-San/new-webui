@@ -51,7 +51,10 @@
 
 	const refresh = async () => {
 		const token = localStorage.token;
-		[plans, status] = await Promise.all([getSubscriptionPlans(token), getSubscriptionStatus(token)]);
+		[plans, status] = await Promise.all([
+			getSubscriptionPlans(token),
+			getSubscriptionStatus(token)
+		]);
 	};
 
 	const selectPlan = async (plan: SubscriptionPlan) => {
@@ -97,7 +100,9 @@
 		? 'md:max-w-[calc(100%-var(--sidebar-width))]'
 		: ''} max-w-full bg-gray-50 dark:bg-gray-950"
 >
-	<div class="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-gray-50/90 dark:bg-gray-950/90 backdrop-blur">
+	<div
+		class="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-gray-50/90 dark:bg-gray-950/90 backdrop-blur"
+	>
 		<div>
 			<div class="text-xl font-semibold text-gray-900 dark:text-gray-50">
 				{$i18n.t('Subscriptions')}
@@ -122,7 +127,9 @@
 	{:else}
 		<div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-5 pb-10">
 			{#if status}
-				<div class="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-3">
+				<div
+					class="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-3"
+				>
 					<div>
 						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Current plan')}</div>
 						<div class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-50">
@@ -134,11 +141,15 @@
 						<div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
 							<div
 								class="h-full rounded-full bg-gray-900 dark:bg-gray-100"
-								style="width: {usagePercent(status.usage_week.message_count, status.plan.rules?.message_limit_per_week)}%"
+								style="width: {usagePercent(
+									status.usage_week.message_count,
+									status.plan.rules?.message_limit_per_week
+								)}%"
 							/>
 						</div>
 						<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-							{formatNumber(status.usage_week.message_count)} / {status.plan.rules?.message_limit_per_week ?? '∞'}
+							{formatNumber(status.usage_week.message_count)} / {status.plan.rules
+								?.message_limit_per_week ?? '∞'}
 						</div>
 					</div>
 					<div>
@@ -146,11 +157,15 @@
 						<div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
 							<div
 								class="h-full rounded-full bg-indigo-600"
-								style="width: {usagePercent(status.usage_week.total_tokens, status.plan.rules?.token_limit_per_week)}%"
+								style="width: {usagePercent(
+									status.usage_week.total_tokens,
+									status.plan.rules?.token_limit_per_week
+								)}%"
 							/>
 						</div>
 						<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-							{formatNumber(status.usage_week.total_tokens)} / {status.plan.rules?.token_limit_per_week
+							{formatNumber(status.usage_week.total_tokens)} / {status.plan.rules
+								?.token_limit_per_week
 								? formatNumber(status.plan.rules.token_limit_per_week)
 								: '∞'}
 						</div>
@@ -169,7 +184,9 @@
 						<div class="flex items-start justify-between gap-3">
 							<div class="text-2xl font-semibold text-gray-900 dark:text-gray-50">{plan.name}</div>
 							{#if isCurrent}
-								<div class="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200">
+								<div
+									class="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200"
+								>
 									{$i18n.t('Current')}
 								</div>
 							{/if}
@@ -177,7 +194,9 @@
 
 						<div class="mt-8 flex items-end gap-1 text-gray-900 dark:text-gray-50">
 							<span class="text-5xl font-semibold tracking-normal">{formatPrice(plan)}</span>
-							<span class="pb-2 text-xs text-gray-500 dark:text-gray-400">/ {$i18n.t(plan.interval)}</span>
+							<span class="pb-2 text-xs text-gray-500 dark:text-gray-400"
+								>/ {$i18n.t(plan.interval)}</span
+							>
 						</div>
 
 						<div class="mt-5 min-h-10 text-sm text-gray-700 dark:text-gray-300">
