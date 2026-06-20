@@ -17,11 +17,7 @@
 	let rulesText = '';
 	let saving = false;
 
-	$: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? plans[0];
-
-	$: if (selectedPlan && selectedPlan.id !== selectedPlanId) {
-		selectedPlanId = selectedPlan.id;
-	}
+	$: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? null;
 
 	const load = async () => {
 		plans = await getSubscriptionPlans(localStorage.token);
