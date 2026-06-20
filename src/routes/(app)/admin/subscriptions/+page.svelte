@@ -3,8 +3,11 @@
 	import { toast } from 'svelte-sonner';
 
 	import {
+		confirmSubscriptionCheckout,
+		getSubscriptionCheckouts,
 		getSubscriptionPlans,
 		upsertSubscriptionPlan,
+		type SubscriptionCheckout,
 		type SubscriptionPlan
 	} from '$lib/apis/subscriptions';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -13,16 +16,42 @@
 
 	let loaded = false;
 	let plans: SubscriptionPlan[] = [];
+	let checkouts: SubscriptionCheckout[] = [];
 	let selectedPlanId = '';
 	let rulesText = '';
 	let saving = false;
+	let confirmingCheckoutId = '';
 
 	$: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? null;
 
 	const load = async () => {
-		plans = await getSubscriptionPlans(localStorage.token);
+		[plans, checkouts] = await Promise.all([
+			getSubscriptionPlans(localStorage.token),
+			getSubscriptionCheckouts(localStorage.token, 'pending')
+		]);
 		selectedPlanId = plans[0]?.id ?? '';
 		rulesText = JSON.stringify(plans[0]?.rules ?? {}, null, 2);
+	};
+
+	const formatPrice = (amount = 0, currency = 'USD') => {
+		return new Intl.NumberFormat(undefined, {
+			style: 'currency',
+			currency,
+			maximumFractionDigits: 0
+		}).format(amount);
+	};
+
+	const confirmCheckout = async (checkout: SubscriptionCheckout) => {
+		confirmingCheckoutId = checkout.id;
+		try {
+			await confirmSubscriptionCheckout(localStorage.token, checkout.id);
+			checkouts = await getSubscriptionCheckouts(localStorage.token, 'pending');
+			toast.success($i18n.t('Checkout confirmed'));
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			confirmingCheckoutId = '';
+		}
 	};
 
 	const selectPlan = (plan: SubscriptionPlan) => {
@@ -108,6 +137,64 @@
 					>
 						{saving ? $i18n.t('Saving...') : $i18n.t('Save')}
 					</button>
+				</div>
+
+				<div class="mt-5 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							<div class="text-sm font-semibold">{$i18n.t('Pending Checkouts')}</div>
+							<div class="text-xs text-gray-500">
+								{$i18n.t('Confirm paid orders to activate subscriptions.')}
+							</div>
+						</div>
+						<button
+							type="button"
+							class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium dark:border-gray-700"
+							on:click={async () =>
+								(checkouts = await getSubscriptionCheckouts(localStorage.token, 'pending'))}
+						>
+							{$i18n.t('Refresh')}
+						</button>
+					</div>
+
+					{#if checkouts.length === 0}
+						<div class="mt-3 text-sm text-gray-500">{$i18n.t('No pending checkouts.')}</div>
+					{:else}
+						<div class="mt-3 max-h-56 space-y-2 overflow-auto">
+							{#each checkouts as checkout}
+								<div
+									class="rounded-xl border border-gray-100 bg-white p-3 text-sm dark:border-gray-800 dark:bg-gray-900"
+								>
+									<div class="flex flex-wrap items-center justify-between gap-3">
+										<div class="min-w-0">
+											<div class="font-medium">
+												{checkout.plan?.name ?? checkout.plan_id}
+												<span class="text-gray-500">
+													{formatPrice(checkout.amount, checkout.currency)}
+												</span>
+											</div>
+											<div class="mt-1 break-all font-mono text-xs text-gray-500">
+												{checkout.id}
+											</div>
+											<div class="mt-1 break-all text-xs text-gray-500">
+												{$i18n.t('User')}: {checkout.user_id}
+											</div>
+										</div>
+										<button
+											type="button"
+											class="h-9 shrink-0 rounded-full bg-gray-950 px-3 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-950"
+											disabled={confirmingCheckoutId === checkout.id}
+											on:click={() => confirmCheckout(checkout)}
+										>
+											{confirmingCheckoutId === checkout.id
+												? $i18n.t('Confirming...')
+												: $i18n.t('Confirm paid')}
+										</button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 
 				<div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">

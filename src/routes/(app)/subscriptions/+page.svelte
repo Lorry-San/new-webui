@@ -5,6 +5,7 @@
 	import { WEBUI_NAME, models, showSidebar } from '$lib/stores';
 	import {
 		getSubscriptionPlans,
+		createSubscriptionCheckout,
 		getSubscriptionStatus,
 		selectSubscriptionPlan,
 		type SubscriptionPlan,
@@ -20,6 +21,7 @@
 	let plans: SubscriptionPlan[] = [];
 	let status: SubscriptionStatus | null = null;
 	let selectingPlanId = '';
+	let checkingOutPlanId = '';
 
 	const formatPrice = (plan: SubscriptionPlan) => {
 		return new Intl.NumberFormat(undefined, {
@@ -54,6 +56,20 @@
 
 	const selectPlan = async (plan: SubscriptionPlan) => {
 		if (plan.id === status?.plan?.id) return;
+
+		if ((plan.price ?? 0) > 0) {
+			checkingOutPlanId = plan.id;
+			try {
+				const checkout = await createSubscriptionCheckout(localStorage.token, plan.id);
+				window.location.href = `/subscriptions/checkout/${checkout.id}`;
+			} catch (error) {
+				toast.error(`${error}`);
+			} finally {
+				checkingOutPlanId = '';
+			}
+			return;
+		}
+
 		selectingPlanId = plan.id;
 		try {
 			await selectSubscriptionPlan(localStorage.token, plan.id);
@@ -175,13 +191,17 @@
 								: plan.id === 'plus'
 									? 'bg-indigo-600 text-white hover:bg-indigo-500'
 									: 'bg-gray-950 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950'}"
-							disabled={isCurrent || selectingPlanId === plan.id}
+							disabled={isCurrent || selectingPlanId === plan.id || checkingOutPlanId === plan.id}
 							on:click={() => selectPlan(plan)}
 						>
 							{#if selectingPlanId === plan.id}
 								{$i18n.t('Updating...')}
+							{:else if checkingOutPlanId === plan.id}
+								{$i18n.t('Creating order...')}
 							{:else if isCurrent}
 								{$i18n.t('Your current plan')}
+							{:else if (plan.price ?? 0) > 0}
+								{$i18n.t('Subscribe')} {plan.name}
 							{:else}
 								{$i18n.t('Select')} {plan.name}
 							{/if}

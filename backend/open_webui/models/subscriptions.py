@@ -150,6 +150,23 @@ class SubscriptionUsageEvent(Base):
     created_at = Column(BigInteger, nullable=False, index=True)
 
 
+class SubscriptionCheckout(Base):
+    __tablename__ = 'subscription_checkout'
+
+    id = Column(Text, primary_key=True)
+    user_id = Column(Text, nullable=False, index=True)
+    plan_id = Column(Text, nullable=False, index=True)
+    status = Column(Text, nullable=False, default='pending', index=True)
+    amount = Column(Float, nullable=False, default=0)
+    currency = Column(Text, nullable=False, default='USD')
+    interval = Column(Text, nullable=False, default='month')
+    checkout_url = Column(Text, nullable=True)
+    meta = Column('metadata', JSON, nullable=True)
+    created_at = Column(BigInteger, nullable=False, index=True)
+    updated_at = Column(BigInteger, nullable=False)
+    completed_at = Column(BigInteger, nullable=True)
+
+
 class SubscriptionPlanModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -216,6 +233,24 @@ class SubscriptionStatus(BaseModel):
     subscription: Optional[UserSubscriptionModel] = None
     usage_5h: UsageSummary
     usage_week: UsageSummary
+
+
+class SubscriptionCheckoutModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    user_id: str
+    plan_id: str
+    status: str = 'pending'
+    amount: float = 0
+    currency: str = 'USD'
+    interval: str = 'month'
+    checkout_url: Optional[str] = None
+    metadata: Optional[dict] = Field(default=None, validation_alias='meta')
+    created_at: int
+    updated_at: int
+    completed_at: Optional[int] = None
+    plan: Optional[SubscriptionPlanModel] = None
 
 
 class SubscriptionUsageTable:
@@ -309,6 +344,95 @@ class SubscriptionsTable:
             await self.ensure_default_plans(db)
             row = await db.get(SubscriptionPlan, plan_id)
             return SubscriptionPlanModel.model_validate(row) if row else None
+
+    async def create_checkout(
+        self, user_id: str, plan: SubscriptionPlanModel, db: Optional[AsyncSession] = None
+    ) -> SubscriptionCheckoutModel:
+        async with get_async_db_context(db) as db:
+            now = int(time.time())
+            checkout_id = str(uuid4())
+            payment_url = (plan.rules or {}).get('payment_url') or ''
+            checkout_url = payment_url.format(order_id=checkout_id, plan_id=plan.id) if payment_url else None
+            row = SubscriptionCheckout(
+                id=checkout_id,
+                user_id=user_id,
+                plan_id=plan.id,
+                amount=plan.price,
+                currency=plan.currency,
+                interval=plan.interval,
+                checkout_url=checkout_url,
+                status='pending',
+                meta={'plan_name': plan.name},
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(row)
+            await db.commit()
+            await db.refresh(row)
+            model = SubscriptionCheckoutModel.model_validate(row)
+            model.plan = plan
+            return model
+
+    async def get_checkout(
+        self, checkout_id: str, user_id: Optional[str] = None, db: Optional[AsyncSession] = None
+    ) -> Optional[SubscriptionCheckoutModel]:
+        async with get_async_db_context(db) as db:
+            stmt = select(SubscriptionCheckout).where(SubscriptionCheckout.id == checkout_id)
+            if user_id:
+                stmt = stmt.where(SubscriptionCheckout.user_id == user_id)
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if not row:
+                return None
+            model = SubscriptionCheckoutModel.model_validate(row)
+            model.plan = await self.get_plan_by_id(row.plan_id, db=db)
+            return model
+
+    async def get_checkouts(
+        self, status: Optional[str] = None, db: Optional[AsyncSession] = None
+    ) -> list[SubscriptionCheckoutModel]:
+        async with get_async_db_context(db) as db:
+            stmt = select(SubscriptionCheckout).order_by(SubscriptionCheckout.created_at.desc()).limit(100)
+            if status:
+                stmt = stmt.where(SubscriptionCheckout.status == status)
+            rows = (await db.execute(stmt)).scalars().all()
+            plans = {plan.id: plan for plan in await self.get_plans(active_only=False, db=db)}
+            result = []
+            for row in rows:
+                model = SubscriptionCheckoutModel.model_validate(row)
+                model.plan = plans.get(row.plan_id)
+                result.append(model)
+            return result
+
+    async def complete_checkout(
+        self, checkout_id: str, metadata: Optional[dict] = None, db: Optional[AsyncSession] = None
+    ) -> SubscriptionCheckoutModel:
+        async with get_async_db_context(db) as db:
+            now = int(time.time())
+            row = await db.get(SubscriptionCheckout, checkout_id)
+            if not row:
+                raise ValueError('Subscription checkout not found')
+            if row.status == 'paid':
+                model = SubscriptionCheckoutModel.model_validate(row)
+                model.plan = await self.get_plan_by_id(row.plan_id, db=db)
+                return model
+            row.status = 'paid'
+            row.completed_at = now
+            row.updated_at = now
+            row.meta = {**(row.meta or {}), **(metadata or {})}
+            await db.commit()
+            await db.refresh(row)
+            plan = await self.get_plan_by_id(row.plan_id, db=db)
+            await self.set_user_subscription(
+                UserSubscriptionForm(
+                    user_id=row.user_id,
+                    plan_id=row.plan_id,
+                    metadata={'checkout_id': row.id, 'source': 'checkout'},
+                ),
+                db=db,
+            )
+            model = SubscriptionCheckoutModel.model_validate(row)
+            model.plan = plan
+            return model
 
     async def upsert_plan(self, form: SubscriptionPlanForm, db: Optional[AsyncSession] = None) -> SubscriptionPlanModel:
         async with get_async_db_context(db) as db:

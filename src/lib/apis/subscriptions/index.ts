@@ -30,6 +30,22 @@ export type SubscriptionStatus = {
 	usage_week: UsageSummary;
 };
 
+export type SubscriptionCheckout = {
+	id: string;
+	user_id: string;
+	plan_id: string;
+	status: string;
+	amount: number;
+	currency: string;
+	interval: string;
+	checkout_url?: string | null;
+	metadata?: Record<string, any> | null;
+	created_at: number;
+	updated_at: number;
+	completed_at?: number | null;
+	plan?: SubscriptionPlan | null;
+};
+
 const apiFetch = async (token: string, path: string, options: RequestInit = {}) => {
 	let error = null;
 	const res = await fetch(`${WEBUI_API_BASE_URL}/subscriptions${path}`, {
@@ -68,6 +84,37 @@ export const getSubscriptionStatus = async (token: string): Promise<Subscription
 
 export const selectSubscriptionPlan = async (token: string, planId: string) => {
 	return await apiFetch(token, `/select/${encodeURIComponent(planId)}`, { method: 'POST' });
+};
+
+export const createSubscriptionCheckout = async (
+	token: string,
+	planId: string
+): Promise<SubscriptionCheckout> => {
+	return await apiFetch(token, `/checkout/${encodeURIComponent(planId)}`, { method: 'POST' });
+};
+
+export const getSubscriptionCheckout = async (
+	token: string,
+	checkoutId: string
+): Promise<SubscriptionCheckout> => {
+	return await apiFetch(token, `/checkout/${encodeURIComponent(checkoutId)}`);
+};
+
+export const getSubscriptionCheckouts = async (
+	token: string,
+	statusFilter = ''
+): Promise<SubscriptionCheckout[]> => {
+	const query = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+	return await apiFetch(token, `/checkouts${query}`);
+};
+
+export const confirmSubscriptionCheckout = async (
+	token: string,
+	checkoutId: string
+): Promise<SubscriptionCheckout> => {
+	return await apiFetch(token, `/checkouts/${encodeURIComponent(checkoutId)}/confirm`, {
+		method: 'POST'
+	});
 };
 
 export const upsertSubscriptionPlan = async (token: string, plan: Partial<SubscriptionPlan>) => {
