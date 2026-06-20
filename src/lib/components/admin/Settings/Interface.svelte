@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { getModels, getTaskConfig, updateTaskConfig } from '$lib/apis';
-	import { config, settings } from '$lib/stores';
+	import { config, settings, WEBUI_NAME } from '$lib/stores';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	import { getBrandingConfig, setBrandingConfig } from '$lib/apis/configs';
 	import { getBaseModels } from '$lib/apis/models';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -35,8 +36,29 @@
 		VOICE_MODE_PROMPT_TEMPLATE: ''
 	};
 
+	let brandingConfig = {
+		WEBUI_NAME: '',
+		UI_LOGIN_LOGO_URL: '',
+		UI_LOGIN_TITLE: '',
+		UI_LOGIN_SUBTITLE: '',
+		UI_CHAT_BACKGROUND_IMAGE_URL: ''
+	};
+
 	const updateInterfaceHandler = async () => {
 		taskConfig = await updateTaskConfig(localStorage.token, taskConfig);
+		brandingConfig = await setBrandingConfig(localStorage.token, brandingConfig);
+		await WEBUI_NAME.set(brandingConfig.WEBUI_NAME);
+		await config.set({
+			...$config,
+			name: brandingConfig.WEBUI_NAME,
+			ui: {
+				...($config?.ui ?? {}),
+				login_logo_url: brandingConfig.UI_LOGIN_LOGO_URL,
+				login_title: brandingConfig.UI_LOGIN_TITLE,
+				login_subtitle: brandingConfig.UI_LOGIN_SUBTITLE,
+				chat_background_image_url: brandingConfig.UI_CHAT_BACKGROUND_IMAGE_URL
+			}
+		});
 	};
 
 	let workspaceModels = null;
@@ -47,6 +69,7 @@
 	const init = async () => {
 		try {
 			taskConfig = await getTaskConfig(localStorage.token);
+			brandingConfig = await getBrandingConfig(localStorage.token);
 
 			workspaceModels = await getBaseModels(localStorage.token);
 			baseModels = await getModels(localStorage.token, null, false);
@@ -92,6 +115,56 @@
 		}}
 	>
 		<div class="  overflow-y-scroll scrollbar-hidden h-full pr-1.5">
+			<div class="mb-3.5">
+				<div class=" mt-0.5 mb-2.5 text-base font-medium">{$i18n.t('Branding')}</div>
+
+				<hr class=" border-gray-100/30 dark:border-gray-850/30 my-2" />
+
+				<div class="mb-2.5">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('Website Title')}</div>
+					<input
+						class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+						bind:value={brandingConfig.WEBUI_NAME}
+						placeholder={$i18n.t('Website Title')}
+					/>
+				</div>
+
+				<div class="mb-2.5">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('Login Logo URL')}</div>
+					<input
+						class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+						bind:value={brandingConfig.UI_LOGIN_LOGO_URL}
+						placeholder="/static/logo.png"
+					/>
+				</div>
+
+				<div class="mb-2.5">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('Login Title')}</div>
+					<input
+						class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+						bind:value={brandingConfig.UI_LOGIN_TITLE}
+						placeholder={$i18n.t('Sign in to {{WEBUI_NAME}}', { WEBUI_NAME: $WEBUI_NAME })}
+					/>
+				</div>
+
+				<div class="mb-2.5">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('Login Subtitle')}</div>
+					<Textarea
+						bind:value={brandingConfig.UI_LOGIN_SUBTITLE}
+						placeholder={$i18n.t('Optional text shown under the login title')}
+					/>
+				</div>
+
+				<div class="mb-2.5">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('Chat Background Image URL')}</div>
+					<input
+						class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+						bind:value={brandingConfig.UI_CHAT_BACKGROUND_IMAGE_URL}
+						placeholder="https://example.com/background.jpg"
+					/>
+				</div>
+			</div>
+
 			<div class="mb-3.5">
 				<div class=" mt-0.5 mb-2.5 text-base font-medium">{$i18n.t('Tasks')}</div>
 

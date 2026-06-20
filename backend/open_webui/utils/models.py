@@ -23,6 +23,8 @@ from open_webui.utils.plugin import (
     get_function_module_from_cache,
     load_function_module_by_id,
 )
+from open_webui.utils.subscriptions import user_can_use_model
+from open_webui.models.subscriptions import Subscriptions
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -408,6 +410,13 @@ async def check_model_access(user, model, db=None):
 
 
 async def get_filtered_models(models, user, db=None):
+    if user and user.role != 'admin':
+        try:
+            plan, _ = await Subscriptions.get_user_plan(user.id, db=db)
+            models = [model for model in models if user_can_use_model(plan, model.get('id'))]
+        except Exception as e:
+            log.warning('Failed to apply subscription model filter: %s', e)
+
     # Filter out models that the user does not have access to
     if (
         user.role == 'user' or (user.role == 'admin' and not BYPASS_ADMIN_ACCESS_CONTROL)

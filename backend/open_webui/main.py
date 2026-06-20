@@ -503,6 +503,7 @@ from open_webui.routers import (
     retrieval,
     scim,
     skills,
+    subscriptions,
     tasks,
     terminals,
     tools,
@@ -572,6 +573,7 @@ from open_webui.utils.models import (
     get_all_models,
     get_filtered_models,
 )
+from open_webui.utils.subscriptions import check_subscription_access
 from open_webui.utils.oauth import (
     OAuthClientInformationFull,
     OAuthClientManager,
@@ -1450,6 +1452,7 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
+app.include_router(subscriptions.router, prefix='/api/v1/subscriptions', tags=['subscriptions'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:
@@ -1754,6 +1757,11 @@ async def chat_completion(
         else:
             form_data.pop('id', None)
 
+        subscription_plans = {}
+        if user.role != 'admin':
+            for target_model_id in message_ids.keys():
+                subscription_plans[target_model_id] = await check_subscription_access(user.id, target_model_id)
+
         user_message = form_data.pop('user_message', None) or form_data.pop('parent_message', None)
 
         # Drop tool_servers if caller lacks features.direct_tool_servers —
@@ -1798,6 +1806,7 @@ async def chat_completion(
                     else 'default'
                 ),
             },
+            'subscription_plans': subscription_plans,
         }
 
         if is_new_chat:
@@ -2149,6 +2158,7 @@ async def chat_completion(
             per_model_metadata = {
                 **metadata,
                 'message_id': assistant_message_id,
+                'model_id': target_model_id,
             }
 
             # Per-model form_data: own model
@@ -2202,6 +2212,7 @@ async def chat_completion(
     else:
         # Legacy/direct: single model, synchronous
         metadata['message_id'] = list(message_ids.values())[0]
+        metadata['model_id'] = model_id
         return await process_chat(request, form_data, user, metadata, model, tasks)
 
 
@@ -2230,6 +2241,7 @@ from open_webui.utils.anthropic import (
 
 @app.post('/api/message')
 @app.post('/api/v1/messages')  # Anthropic Messages API compatible endpoint
+@app.post('/v1/messages')  # Anthropic Messages API compatible endpoint
 async def generate_messages(
     request: Request,
     form_data: dict,
@@ -2502,6 +2514,10 @@ async def get_app_config(request: Request):
                     'pending_user_overlay_content': app.state.config.PENDING_USER_OVERLAY_CONTENT,
                     'response_watermark': app.state.config.RESPONSE_WATERMARK,
                     'iframe_csp': IFRAME_CSP,
+                    'login_logo_url': app.state.config.UI_LOGIN_LOGO_URL,
+                    'login_title': app.state.config.UI_LOGIN_TITLE,
+                    'login_subtitle': app.state.config.UI_LOGIN_SUBTITLE,
+                    'chat_background_image_url': app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL,
                 },
                 'license_metadata': app.state.LICENSE_METADATA,
                 **(
@@ -2519,9 +2535,25 @@ async def get_app_config(request: Request):
                         'ui': {
                             'pending_user_overlay_title': app.state.config.PENDING_USER_OVERLAY_TITLE,
                             'pending_user_overlay_content': app.state.config.PENDING_USER_OVERLAY_CONTENT,
+                            'login_logo_url': app.state.config.UI_LOGIN_LOGO_URL,
+                            'login_title': app.state.config.UI_LOGIN_TITLE,
+                            'login_subtitle': app.state.config.UI_LOGIN_SUBTITLE,
+                            'chat_background_image_url': app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL,
                         }
                     }
                     if user and user.role == 'pending'
+                    else {}
+                ),
+                **(
+                    {
+                        'ui': {
+                            'login_logo_url': app.state.config.UI_LOGIN_LOGO_URL,
+                            'login_title': app.state.config.UI_LOGIN_TITLE,
+                            'login_subtitle': app.state.config.UI_LOGIN_SUBTITLE,
+                            'chat_background_image_url': app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL,
+                        }
+                    }
+                    if user is None
                     else {}
                 ),
                 **(

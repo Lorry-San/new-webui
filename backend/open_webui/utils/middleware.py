@@ -112,6 +112,7 @@ from open_webui.utils.payload import apply_system_prompt_to_body
 from open_webui.utils.plugin import load_function_module_by_id
 from open_webui.utils.response import normalize_usage
 from open_webui.utils.sanitize import sanitize_code
+from open_webui.utils.subscriptions import record_subscription_usage
 from open_webui.utils.task import (
     get_task_model_id,
     rag_template,
@@ -3421,6 +3422,24 @@ async def outlet_filter_handler(ctx):
         log.debug(f'Error running outlet filters: {e}')
 
 
+async def record_chat_subscription_usage(user, metadata: dict, usage: dict | None):
+    if user.role == 'admin':
+        return
+    try:
+        model_id = metadata.get('model_id')
+        subscription_plan = (metadata.get('subscription_plans') or {}).get(model_id)
+        if subscription_plan and model_id:
+            await record_subscription_usage(
+                user.id,
+                subscription_plan,
+                model_id,
+                usage or {},
+                metadata,
+            )
+    except Exception as e:
+        log.warning('Failed to record subscription usage: %s', e)
+
+
 async def non_streaming_chat_response_handler(response, ctx):
     request = ctx['request']
 
@@ -3530,6 +3549,8 @@ async def non_streaming_chat_response_handler(response, ctx):
                                 **({'usage': usage} if usage else {}),
                             },
                         )
+
+                    await record_chat_subscription_usage(user, metadata, usage)
 
                     # Send a webhook notification if the user is not active
                     if request.app.state.config.ENABLE_USER_WEBHOOKS and not await Users.is_user_active(user.id):
@@ -5144,6 +5165,8 @@ async def streaming_chat_response_handler(response, ctx):
                             metadata['message_id'],
                             {'done': True},
                         )
+
+                await record_chat_subscription_usage(user, metadata, usage)
 
                 # Send a webhook notification if the user is not active
                 if request.app.state.config.ENABLE_USER_WEBHOOKS and not await Users.is_user_active(user.id):

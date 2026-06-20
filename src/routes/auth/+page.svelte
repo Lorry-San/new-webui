@@ -42,6 +42,17 @@
 
 	let ldapUsername = '';
 
+	$: loginLogoUrl = $config?.ui?.login_logo_url || `${WEBUI_BASE_URL}/static/favicon.png`;
+	$: loginTitle =
+		$config?.ui?.login_title ||
+		($config?.onboarding
+			? $i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })
+			: mode === 'ldap'
+				? $i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })
+				: mode === 'signin'
+					? $i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })
+					: $i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME }));
+
 	const setSessionUser = async (sessionUser, redirectPath: string | null = null) => {
 		if (sessionUser) {
 			console.log(sessionUser);
@@ -262,7 +273,7 @@
 									<img
 										id="logo"
 										crossorigin="anonymous"
-										src="{WEBUI_BASE_URL}/static/favicon.png"
+										src={loginLogoUrl}
 										class="size-24 rounded-full"
 										alt="{$WEBUI_NAME} logo"
 									/>
@@ -277,18 +288,14 @@
 							>
 								<div class="mb-1">
 									<div class=" text-2xl font-medium">
-										{#if $config?.onboarding ?? false}
-											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
-										{:else if mode === 'ldap'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
-										{:else if mode === 'signin'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
-										{:else}
-											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
-										{/if}
+										{loginTitle}
 									</div>
 
-									{#if $config?.onboarding ?? false}
+									{#if $config?.ui?.login_subtitle}
+										<div class="mt-1 text-xs font-medium text-gray-600 dark:text-gray-500 whitespace-pre-line">
+											{$config.ui.login_subtitle}
+										</div>
+									{:else if $config?.onboarding ?? false}
 										<div class="mt-1 text-xs font-medium text-gray-600 dark:text-gray-500">
 											ⓘ {$WEBUI_NAME}
 											{$i18n.t(
@@ -614,7 +621,7 @@
 						<img
 							id="logo"
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
+							src={loginLogoUrl}
 							class=" w-6 rounded-full"
 							alt=""
 						/>

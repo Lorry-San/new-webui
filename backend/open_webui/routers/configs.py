@@ -81,6 +81,46 @@ async def get_connections_config(request: Request, user=Depends(get_admin_user))
     }
 
 
+class BrandingConfigForm(BaseModel):
+    WEBUI_NAME: str
+    UI_LOGIN_LOGO_URL: str | None = ''
+    UI_LOGIN_TITLE: str | None = ''
+    UI_LOGIN_SUBTITLE: str | None = ''
+    UI_CHAT_BACKGROUND_IMAGE_URL: str | None = ''
+
+
+@router.get('/branding', response_model=BrandingConfigForm)
+async def get_branding_config(request: Request, user=Depends(get_admin_user)):
+    return {
+        'WEBUI_NAME': request.app.state.WEBUI_NAME,
+        'UI_LOGIN_LOGO_URL': request.app.state.config.UI_LOGIN_LOGO_URL,
+        'UI_LOGIN_TITLE': request.app.state.config.UI_LOGIN_TITLE,
+        'UI_LOGIN_SUBTITLE': request.app.state.config.UI_LOGIN_SUBTITLE,
+        'UI_CHAT_BACKGROUND_IMAGE_URL': request.app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL,
+    }
+
+
+@router.post('/branding', response_model=BrandingConfigForm)
+async def set_branding_config(
+    request: Request,
+    form_data: BrandingConfigForm,
+    user=Depends(get_admin_user),
+):
+    request.app.state.WEBUI_NAME = form_data.WEBUI_NAME.strip() or 'Open WebUI'
+    request.app.state.config.UI_LOGIN_LOGO_URL = form_data.UI_LOGIN_LOGO_URL or ''
+    request.app.state.config.UI_LOGIN_TITLE = form_data.UI_LOGIN_TITLE or ''
+    request.app.state.config.UI_LOGIN_SUBTITLE = form_data.UI_LOGIN_SUBTITLE or ''
+    request.app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL = form_data.UI_CHAT_BACKGROUND_IMAGE_URL or ''
+
+    return {
+        'WEBUI_NAME': request.app.state.WEBUI_NAME,
+        'UI_LOGIN_LOGO_URL': request.app.state.config.UI_LOGIN_LOGO_URL,
+        'UI_LOGIN_TITLE': request.app.state.config.UI_LOGIN_TITLE,
+        'UI_LOGIN_SUBTITLE': request.app.state.config.UI_LOGIN_SUBTITLE,
+        'UI_CHAT_BACKGROUND_IMAGE_URL': request.app.state.config.UI_CHAT_BACKGROUND_IMAGE_URL,
+    }
+
+
 @router.post('/connections', response_model=ConnectionsConfigForm)
 async def set_connections_config(
     request: Request,

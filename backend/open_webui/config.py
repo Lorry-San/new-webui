@@ -2625,6 +2625,30 @@ RESPONSE_WATERMARK = ConfigVar(
     os.getenv('RESPONSE_WATERMARK', ''),
 )
 
+UI_LOGIN_LOGO_URL = ConfigVar(
+    'UI_LOGIN_LOGO_URL',
+    'ui.login_logo_url',
+    os.getenv('UI_LOGIN_LOGO_URL', ''),
+)
+
+UI_LOGIN_TITLE = ConfigVar(
+    'UI_LOGIN_TITLE',
+    'ui.login_title',
+    os.getenv('UI_LOGIN_TITLE', ''),
+)
+
+UI_LOGIN_SUBTITLE = ConfigVar(
+    'UI_LOGIN_SUBTITLE',
+    'ui.login_subtitle',
+    os.getenv('UI_LOGIN_SUBTITLE', ''),
+)
+
+UI_CHAT_BACKGROUND_IMAGE_URL = ConfigVar(
+    'UI_CHAT_BACKGROUND_IMAGE_URL',
+    'ui.chat_background_image_url',
+    os.getenv('UI_CHAT_BACKGROUND_IMAGE_URL', ''),
+)
+
 IFRAME_CSP = os.getenv('IFRAME_CSP', '')
 
 USER_PERMISSIONS_WORKSPACE_MODELS_ACCESS = (

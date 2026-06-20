@@ -23,6 +23,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ArchiveBox from '$lib/components/icons/ArchiveBox.svelte';
 	import QuestionMarkCircle from '$lib/components/icons/QuestionMarkCircle.svelte';
+	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import Map from '$lib/components/icons/Map.svelte';
 	import Keyboard from '$lib/components/icons/Keyboard.svelte';
 	import ShortcutsModal from '$lib/components/chat/ShortcutsModal.svelte';
@@ -252,6 +253,27 @@
 				</div>
 				<div class=" self-center truncate">{$i18n.t('Settings')}</div>
 			</button>
+
+			<a
+				href="/subscriptions"
+				draggable="false"
+				class="flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer select-none"
+				on:click={async (e) => {
+					if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+					e.preventDefault();
+					show = false;
+					goto('/subscriptions');
+					if ($mobile) {
+						await tick();
+						showSidebar.set(false);
+					}
+				}}
+			>
+				<div class=" self-center mr-3">
+					<Sparkles className="w-5 h-5" strokeWidth="1.5" />
+				</div>
+				<div class=" self-center truncate">{$i18n.t('Subscriptions')}</div>
+			</a>
 
 			{#if role === 'admin'}
 				<a
