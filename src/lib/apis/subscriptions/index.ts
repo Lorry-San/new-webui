@@ -46,6 +46,17 @@ export type SubscriptionCheckout = {
 	plan?: SubscriptionPlan | null;
 };
 
+export type SubscriptionPaymentProvider = {
+	id: string;
+	name: string;
+	provider_type: string;
+	config: Record<string, any>;
+	is_active?: boolean;
+	sort_order?: number;
+	created_at?: number;
+	updated_at?: number;
+};
+
 const apiFetch = async (token: string, path: string, options: RequestInit = {}) => {
 	let error = null;
 	const res = await fetch(`${WEBUI_API_BASE_URL}/subscriptions${path}`, {
@@ -100,12 +111,45 @@ export const getSubscriptionCheckout = async (
 	return await apiFetch(token, `/checkout/${encodeURIComponent(checkoutId)}`);
 };
 
+export const paySubscriptionCheckout = async (
+	token: string,
+	checkoutId: string,
+	providerId: string
+): Promise<SubscriptionCheckout> => {
+	return await apiFetch(token, `/checkout/${encodeURIComponent(checkoutId)}/pay`, {
+		method: 'POST',
+		body: JSON.stringify({ provider_id: providerId })
+	});
+};
+
 export const getSubscriptionCheckouts = async (
 	token: string,
 	statusFilter = ''
 ): Promise<SubscriptionCheckout[]> => {
 	const query = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
 	return await apiFetch(token, `/checkouts${query}`);
+};
+
+export const getSubscriptionPaymentProviders = async (
+	token: string
+): Promise<SubscriptionPaymentProvider[]> => {
+	return await apiFetch(token, '/payment-providers');
+};
+
+export const getAdminSubscriptionPaymentProviders = async (
+	token: string
+): Promise<SubscriptionPaymentProvider[]> => {
+	return await apiFetch(token, '/payment-providers/admin');
+};
+
+export const upsertSubscriptionPaymentProvider = async (
+	token: string,
+	provider: Partial<SubscriptionPaymentProvider>
+): Promise<SubscriptionPaymentProvider> => {
+	return await apiFetch(token, '/payment-providers/upsert', {
+		method: 'POST',
+		body: JSON.stringify(provider)
+	});
 };
 
 export const confirmSubscriptionCheckout = async (

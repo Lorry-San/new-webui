@@ -64,7 +64,7 @@
 			checkingOutPlanId = plan.id;
 			try {
 				const checkout = await createSubscriptionCheckout(localStorage.token, plan.id);
-				window.location.href = `/subscriptions/checkout/${checkout.id}`;
+				window.location.href = `/orders/${checkout.id}`;
 			} catch (error) {
 				toast.error(`${error}`);
 			} finally {

@@ -77,6 +77,13 @@
 		);
 	};
 
+	const updatePlanRank = (value: number) => {
+		if (!selectedPlan) return;
+		const rules = { ...(selectedPlan.rules ?? {}), plan_rank: value };
+		plans = plans.map((plan) => (plan.id === selectedPlanId ? { ...plan, rules } : plan));
+		rulesText = JSON.stringify(rules, null, 2);
+	};
+
 	const save = async () => {
 		if (!selectedPlan) return;
 		saving = true;
@@ -236,6 +243,15 @@
 							class="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-850"
 							value={selectedPlan.currency}
 							on:input={(e) => updateField('currency', e.currentTarget.value)}
+						/>
+					</label>
+					<label class="text-sm">
+						<div class="mb-1 text-xs text-gray-500">{$i18n.t('Rank')}</div>
+						<input
+							type="number"
+							class="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-850"
+							value={selectedPlan.rules?.plan_rank ?? selectedPlan.sort_order ?? 0}
+							on:input={(e) => updatePlanRank(Number(e.currentTarget.value))}
 						/>
 					</label>
 				</div>

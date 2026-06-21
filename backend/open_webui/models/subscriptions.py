@@ -1,6 +1,8 @@
 import logging
+import hashlib
 import time
 from typing import Optional
+from urllib.parse import urlencode
 from uuid import uuid4
 
 from open_webui.internal.db import Base, get_async_db_context
@@ -24,6 +26,7 @@ DEFAULT_PLANS = [
         'interval': 'month',
         'features': ['Core models', 'Limited weekly messages', 'Limited token budget'],
         'rules': {
+            'plan_rank': 0,
             'allowed_model_ids': [],
             'message_limit_per_week': 50,
             'message_limit_per_5h': 10,
@@ -44,6 +47,7 @@ DEFAULT_PLANS = [
         'interval': 'month',
         'features': ['More messages', 'More uploads', 'Higher token budget'],
         'rules': {
+            'plan_rank': 10,
             'allowed_model_ids': [],
             'message_limit_per_week': 500,
             'message_limit_per_5h': 80,
@@ -65,6 +69,7 @@ DEFAULT_PLANS = [
         'interval': 'month',
         'features': ['Advanced models', 'Higher message limits', 'Larger token budget'],
         'rules': {
+            'plan_rank': 20,
             'allowed_model_ids': [],
             'message_limit_per_week': 2000,
             'message_limit_per_5h': 200,
@@ -86,6 +91,7 @@ DEFAULT_PLANS = [
         'interval': 'month',
         'features': ['All Plus features', 'Highest usage limits', 'Priority model access'],
         'rules': {
+            'plan_rank': 30,
             'allowed_model_ids': [],
             'message_limit_per_week': 10000,
             'message_limit_per_5h': 1000,
@@ -165,6 +171,19 @@ class SubscriptionCheckout(Base):
     created_at = Column(BigInteger, nullable=False, index=True)
     updated_at = Column(BigInteger, nullable=False)
     completed_at = Column(BigInteger, nullable=True)
+
+
+class SubscriptionPaymentProvider(Base):
+    __tablename__ = 'subscription_payment_provider'
+
+    id = Column(Text, primary_key=True)
+    name = Column(Text, nullable=False)
+    provider_type = Column(Text, nullable=False, default='manual')
+    config = Column(JSON, nullable=False, default={})
+    is_active = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(BigInteger, nullable=False, default=0)
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=False)
 
 
 class SubscriptionPlanModel(BaseModel):
@@ -253,6 +272,39 @@ class SubscriptionCheckoutModel(BaseModel):
     plan: Optional[SubscriptionPlanModel] = None
 
 
+class SubscriptionPaymentProviderModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    provider_type: str = 'manual'
+    config: dict = Field(default_factory=dict)
+    is_active: bool = True
+    sort_order: int = 0
+    created_at: int
+    updated_at: int
+
+
+class SubscriptionPaymentProviderForm(BaseModel):
+    id: str
+    name: str
+    provider_type: str = 'manual'
+    config: dict = Field(default_factory=dict)
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class SubscriptionPaymentProviderPublicModel(BaseModel):
+    id: str
+    name: str
+    provider_type: str = 'manual'
+    config: dict = Field(default_factory=dict)
+
+
+class SubscriptionCheckoutPaymentForm(BaseModel):
+    provider_id: str
+
+
 class SubscriptionUsageTable:
     @staticmethod
     def calculate_amount(plan: SubscriptionPlanModel, model_id: str, usage: dict) -> float:
@@ -322,6 +374,29 @@ class SubscriptionUsageTable:
 
 
 class SubscriptionsTable:
+    @staticmethod
+    def get_plan_rank(plan: Optional[SubscriptionPlanModel]) -> int:
+        if not plan:
+            return 0
+        rules = plan.rules or {}
+        return int(rules.get('plan_rank', plan.sort_order or 0) or 0)
+
+    async def assert_plan_change_allowed(
+        self,
+        user_id: str,
+        target_plan: SubscriptionPlanModel,
+        db: Optional[AsyncSession] = None,
+    ) -> None:
+        current_plan, subscription = await self.get_user_plan(user_id, db=db)
+        now = int(time.time())
+        if (
+            subscription
+            and subscription.current_period_end
+            and subscription.current_period_end > now
+            and self.get_plan_rank(current_plan) > self.get_plan_rank(target_plan)
+        ):
+            raise ValueError('Cannot downgrade during the current subscription period')
+
     async def ensure_default_plans(self, db: Optional[AsyncSession] = None) -> None:
         async with get_async_db_context(db) as db:
             count = (await db.execute(select(func.count()).select_from(SubscriptionPlan))).scalar() or 0
@@ -353,6 +428,7 @@ class SubscriptionsTable:
         self, user_id: str, plan: SubscriptionPlanModel, db: Optional[AsyncSession] = None
     ) -> SubscriptionCheckoutModel:
         async with get_async_db_context(db) as db:
+            await self.assert_plan_change_allowed(user_id, plan, db=db)
             now = int(time.time())
             checkout_id = str(uuid4())
             payment_url = (plan.rules or {}).get('payment_url') or ''
@@ -376,6 +452,156 @@ class SubscriptionsTable:
             model = SubscriptionCheckoutModel.model_validate(row)
             model.plan = plan
             return model
+
+    def sanitize_payment_provider(
+        self, provider: SubscriptionPaymentProviderModel
+    ) -> SubscriptionPaymentProviderPublicModel:
+        config = {
+            key: value
+            for key, value in (provider.config or {}).items()
+            if key not in {'key', 'secret', 'private_key', 'api_key'}
+        }
+        return SubscriptionPaymentProviderPublicModel(
+            id=provider.id,
+            name=provider.name,
+            provider_type=provider.provider_type,
+            config=config,
+        )
+
+    async def get_payment_providers(
+        self, active_only: bool = True, db: Optional[AsyncSession] = None
+    ) -> list[SubscriptionPaymentProviderModel]:
+        async with get_async_db_context(db) as db:
+            stmt = select(SubscriptionPaymentProvider).order_by(
+                SubscriptionPaymentProvider.sort_order.asc(), SubscriptionPaymentProvider.created_at.asc()
+            )
+            if active_only:
+                stmt = stmt.where(SubscriptionPaymentProvider.is_active == True)
+            rows = (await db.execute(stmt)).scalars().all()
+            return [SubscriptionPaymentProviderModel.model_validate(row) for row in rows]
+
+    async def get_payment_provider_by_id(
+        self, provider_id: str, db: Optional[AsyncSession] = None
+    ) -> Optional[SubscriptionPaymentProviderModel]:
+        async with get_async_db_context(db) as db:
+            row = await db.get(SubscriptionPaymentProvider, provider_id)
+            return SubscriptionPaymentProviderModel.model_validate(row) if row else None
+
+    async def upsert_payment_provider(
+        self, form: SubscriptionPaymentProviderForm, db: Optional[AsyncSession] = None
+    ) -> SubscriptionPaymentProviderModel:
+        async with get_async_db_context(db) as db:
+            now = int(time.time())
+            row = await db.get(SubscriptionPaymentProvider, form.id)
+            if row:
+                for key, value in form.model_dump().items():
+                    setattr(row, key, value)
+                row.updated_at = now
+            else:
+                row = SubscriptionPaymentProvider(**form.model_dump(), created_at=now, updated_at=now)
+                db.add(row)
+            await db.commit()
+            await db.refresh(row)
+            return SubscriptionPaymentProviderModel.model_validate(row)
+
+    @staticmethod
+    def build_epay_sign(params: dict, key: str) -> str:
+        raw = '&'.join(
+            f'{name}={params[name]}'
+            for name in sorted(params)
+            if name not in {'sign', 'sign_type'} and params[name] not in (None, '')
+        )
+        return hashlib.md5(f'{raw}{key}'.encode()).hexdigest()
+
+    async def create_checkout_payment(
+        self,
+        checkout_id: str,
+        provider_id: str,
+        base_url: str,
+        db: Optional[AsyncSession] = None,
+    ) -> SubscriptionCheckoutModel:
+        async with get_async_db_context(db) as db:
+            row = await db.get(SubscriptionCheckout, checkout_id)
+            if not row:
+                raise ValueError('Subscription checkout not found')
+            if row.status != 'pending':
+                model = SubscriptionCheckoutModel.model_validate(row)
+                model.plan = await self.get_plan_by_id(row.plan_id, db=db)
+                return model
+
+            provider = await self.get_payment_provider_by_id(provider_id, db=db)
+            if not provider or not provider.is_active:
+                raise ValueError('Payment provider not found')
+
+            plan = await self.get_plan_by_id(row.plan_id, db=db)
+            now = int(time.time())
+            checkout_url = None
+            metadata = row.meta or {}
+            if provider.provider_type == 'epay':
+                config = provider.config or {}
+                api_url = str(config.get('api_url') or '').rstrip('/')
+                pid = str(config.get('pid') or '')
+                key = str(config.get('key') or '')
+                pay_type = str(config.get('pay_type') or 'alipay')
+                if not api_url or not pid or not key:
+                    raise ValueError('ePay provider is not configured')
+                params = {
+                    'pid': pid,
+                    'type': pay_type,
+                    'out_trade_no': row.id,
+                    'notify_url': f'{base_url.rstrip("/")}/api/v1/subscriptions/payments/epay/notify/{provider.id}',
+                    'return_url': f'{base_url.rstrip("/")}/orders/{row.id}',
+                    'name': plan.name if plan else row.plan_id,
+                    'money': f'{float(row.amount):.2f}',
+                    'sitename': config.get('sitename') or 'new-webui',
+                }
+                params['sign'] = self.build_epay_sign(params, key)
+                params['sign_type'] = 'MD5'
+                checkout_url = f'{api_url}/submit.php?{urlencode(params)}'
+            else:
+                checkout_url = (provider.config or {}).get('payment_url') or row.checkout_url
+
+            row.checkout_url = checkout_url
+            row.updated_at = now
+            row.meta = {
+                **metadata,
+                'payment_provider_id': provider.id,
+                'payment_provider_name': provider.name,
+                'payment_provider_type': provider.provider_type,
+            }
+            await db.commit()
+            await db.refresh(row)
+            model = SubscriptionCheckoutModel.model_validate(row)
+            model.plan = plan
+            return model
+
+    async def complete_epay_checkout(
+        self, provider_id: str, params: dict, db: Optional[AsyncSession] = None
+    ) -> SubscriptionCheckoutModel:
+        provider = await self.get_payment_provider_by_id(provider_id, db=db)
+        if not provider or provider.provider_type != 'epay':
+            raise ValueError('Payment provider not found')
+        key = str((provider.config or {}).get('key') or '')
+        if not key or self.build_epay_sign(params, key) != params.get('sign'):
+            raise ValueError('Invalid payment signature')
+        if params.get('trade_status') != 'TRADE_SUCCESS':
+            raise ValueError('Payment is not successful')
+        checkout_id = str(params.get('out_trade_no') or '')
+        checkout = await self.get_checkout(checkout_id, db=db)
+        if not checkout:
+            raise ValueError('Subscription checkout not found')
+        if f'{float(checkout.amount):.2f}' != f'{float(params.get("money") or 0):.2f}':
+            raise ValueError('Payment amount mismatch')
+        return await self.complete_checkout(
+            checkout_id,
+            metadata={
+                'provider_id': provider.id,
+                'provider_type': provider.provider_type,
+                'trade_no': params.get('trade_no'),
+                'source': 'epay_notify',
+            },
+            db=db,
+        )
 
     async def get_checkout(
         self, checkout_id: str, user_id: Optional[str] = None, db: Optional[AsyncSession] = None
@@ -426,10 +652,13 @@ class SubscriptionsTable:
             await db.commit()
             await db.refresh(row)
             plan = await self.get_plan_by_id(row.plan_id, db=db)
+            period_end = now + 30 * 24 * 60 * 60
             await self.set_user_subscription(
                 UserSubscriptionForm(
                     user_id=row.user_id,
                     plan_id=row.plan_id,
+                    current_period_start=now,
+                    current_period_end=period_end,
                     metadata={'checkout_id': row.id, 'source': 'checkout'},
                 ),
                 db=db,
